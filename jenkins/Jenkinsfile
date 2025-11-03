@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = "localhost:5000"
+        K8S_NAMESPACE = "django-react-demo"
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-username/django-react-demo.git'
+            }
+        }
+        
+        stage('Build Backend') {
+            steps {
+                dir('backend') {
+                    sh 'docker build -t ${DOCKER_REGISTRY}/backend:latest .'
+                }
+            }
+        }
+        
+        stage('Build Frontend') {
+            steps {
+                dir('frontend') {
+                    sh 'docker build -t ${DOCKER_REGISTRY}/frontend:latest .'
+                }
+            }
+        }
+        
+        stage('Run Tests') {
+            steps {
+                dir('backend') {
+                    sh 'docker run ${DOCKER_REGISTRY}/backend:latest python manage.py test'
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    sh """
+                    kubectl apply -f k8s/namespace.yaml
+                    kubectl apply -f k8s/backend-deployment.yaml
+                    kubectl apply -f k8s/frontend-deployment.yaml
+                    """
+                    
+                    // Wait for deployment to complete
+                    sh """
+                    kubectl rollout status deployment/backend -n ${K8S_NAMESPACE}
+                    kubectl rollout status deployment/frontend -n ${K8S_NAMESPACE}
+                    """
+                }
+            }
+        }
+        
+        stage('Start Ngrok') {
+            steps {
+                script {
+                    sh '''
+                    docker-compose up -d ngrok
+                    sleep 10
+                    echo "Ngrok tunnels started. Check http://localhost:4040 for URLs"
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo 'Pipeline completed!'
+        }
+        success {
+            echo 'Deployment successful! Check your ngrok URLs at http://localhost:4040'
+        }
+    }
+}

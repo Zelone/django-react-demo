@@ -1,0 +1,15 @@
+version: "2"
+authtoken: ${NGROK_AUTHTOKEN}
+tunnels:
+  frontend:
+    addr: frontend:3000
+    proto: http
+    host_header: "localhost:3000"
+  backend:
+    addr: backend:8000
+    proto: http
+    host_header: "localhost:8000"
+  jenkins:
+    addr: jenkins:8080
+    proto: http
+    host_header: "localhost:8080"
