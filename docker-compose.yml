@@ -1,25 +1,55 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    environment:
+      - POSTGRES_DB=django_demo
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Django Backend
   backend:
     build: ./backend
+    container_name: django_backend
     ports:
       - "8000:8000"
     environment:
       - DEBUG=1
+      - DJANGO_SECRET_KEY=your-secret-key-here-change-in-production
+      - DB_NAME=django_demo
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
     volumes:
       - ./backend:/app
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py runserver 0.0.0.0:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./entrypoint.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
       interval: 30s
       timeout: 10s
       retries: 3
 
+  # React Frontend
   frontend:
     build: ./frontend
+    container_name: react_frontend
     ports:
       - "3000:3000"
     volumes:
@@ -29,23 +59,29 @@ services:
       - backend
     environment:
       - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:8000/api
 
+  # Jenkins CI/CD
   jenkins:
+    build: ./jenkins
     image: jenkins/jenkins:lts
+    container_name: jenkins_master
     privileged: true
     user: root
     ports:
       - "8080:8080"
       - "50000:50000"
     volumes:
-      - jenkins_home:/var/jenkins_home
+      - ./jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/local/bin/docker:/usr/local/bin/docker
     environment:
       - DOCKER_HOST=unix:///var/run/docker.sock
 
+  # Ngrok for public URLs
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: ngrok
+    container_name: ngrok_tunnel
     ports:
       - "4040:4040"
     environment:
@@ -62,5 +98,19 @@ services:
       - backend
       - jenkins
 
+  # PGAdmin (Optional Database Management)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@demo.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+
 volumes:
+  postgres_data:
   jenkins_home:

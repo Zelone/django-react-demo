@@ -1,0 +1,2 @@
+from jenkins/jenkins:lts
+

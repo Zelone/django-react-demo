@@ -4,6 +4,7 @@ __pycache__/
 *.sqlite3
 *.log
 .env
+env/
 .DS_Store
 
 # Node.js
@@ -30,3 +31,4 @@ kubeconfig
 
 # Jenkins
 jenkins_home/
+Jenkins/password.md
